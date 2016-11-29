@@ -25,6 +25,7 @@ namespace {
 	emitter::ptr output_emitter(string const &path) {
 		block_manager<>::ptr bm = open_bm(path, block_manager<>::READ_WRITE);
 		metadata::ptr md(new metadata(bm, metadata::CREATE));
+		// FIXME: isn't metadata_version needed?
 		return create_restore_emitter(md, true);
 	}
 

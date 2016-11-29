@@ -60,6 +60,8 @@ invalid_mapping::visit(damage_visitor &v) const
 namespace {
 	class check_mapping_visitor : public mapping_visitor {
 	public:
+		// FIXME: change top-level interface to not be
+		// metadata_version specific
 		check_mapping_visitor(damage_visitor &visitor, unsigned metadata_version)
 		: visitor_(visitor),
 		  allowed_flags_(metadata_version == 1 ? (M_VALID | M_DIRTY) : M_VALID) {
@@ -124,6 +126,9 @@ caching::walk_mapping_array(mapping_array const &array,
 	array.visit_values(mv, ll);
 }
 
+// FIXME: change top-level interface to not be
+// metadata_version specific.. no access to sb?
+// -- better to pass in allowed flags?
 void
 caching::check_mapping_array(mapping_array const &array, damage_visitor &visitor, unsigned metadata_version)
 {

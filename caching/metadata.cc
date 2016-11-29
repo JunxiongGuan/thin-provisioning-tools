@@ -83,6 +83,8 @@ metadata::create_metadata(block_manager<>::ptr bm, unsigned metadata_version)
 
 	discard_bits_ = pd::bitset::ptr(new pd::bitset(*tm_));
 
+	// FIXME: change top-level interface to not be
+	// metadata_version specific
 	if (metadata_version >= 2)
 		dirty_bits_ = pd::bitset::ptr(new pd::bitset(*tm_));
 }
@@ -108,7 +110,7 @@ metadata::open_metadata(block_manager<>::ptr bm)
 		discard_bits_ = pd::bitset::ptr(
 			new pd::bitset(*tm_, sb_.discard_root, sb_.discard_nr_blocks));
 
-	if (sb_.version >= 2)
+	if (sb_.incompat_flags.get_flag(superblock_incompat_flags::SEP_DIRTY_BITS))
 		dirty_bits_ = pd::bitset::ptr(
 			new pd::bitset(*tm_, *sb_.dirty_root, sb_.cache_blocks));
 }

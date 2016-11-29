@@ -251,7 +251,7 @@ namespace {
 				check_mapping_array(ma, mapping_rep, sb.version);
 			}
 
-			if (sb.version >= 2) {
+			if (sb.incompat_flags.get_flag(superblock_incompat_flags::SEP_DIRTY_BITS)) {
 				persistent_data::bitset dirty(*tm, *sb.dirty_root, sb.cache_blocks);
 				// FIXME: is there no bitset checker?
 			}

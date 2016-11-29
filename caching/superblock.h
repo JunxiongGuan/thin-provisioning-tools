@@ -45,6 +45,30 @@ namespace caching {
 		std::set<flag> flags_;
 	};
 
+	class superblock_incompat_flags {
+	public:
+		enum flag {
+			SEP_DIRTY_BITS,
+		};
+
+		enum incompat_flag_bits {
+			SEP_DIRTY_BITS_BIT = 0,
+		};
+
+		superblock_incompat_flags();
+		superblock_incompat_flags(uint32_t bits);
+
+		void set_flag(flag f);
+		void clear_flag(flag f);
+		bool get_flag(flag f) const;
+		uint32_t encode() const;
+		uint32_t get_unhandled_flags() const;
+
+	private:
+		uint32_t unhandled_incompat_flags_;
+		std::set<flag> incompat_flags_;
+	};
+
 	struct superblock {
 		superblock();
 
@@ -75,7 +99,7 @@ namespace caching {
 
 		uint32_t compat_flags;
 		uint32_t compat_ro_flags;
-		uint32_t incompat_flags;
+		superblock_incompat_flags incompat_flags;
 
 		uint32_t read_hits;
 		uint32_t read_misses;

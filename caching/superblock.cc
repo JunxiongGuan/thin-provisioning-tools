@@ -97,7 +97,7 @@ superblock_flags::clear_flag(superblock_flags::flag f)
 }
 
 bool
-superblock_flags::get_flag(flag f) const
+superblock_flags::get_flag(superblock_flags::flag f) const
 {
 	return flags_.find(f) != flags_.end();
 }
@@ -124,6 +124,58 @@ superblock_flags::get_unhandled_flags() const
 
 //----------------------------------------------------------------
 
+superblock_incompat_flags::superblock_incompat_flags()
+	: unhandled_incompat_flags_(0)
+{
+}
+
+superblock_incompat_flags::superblock_incompat_flags(uint32_t bits)
+{
+	if (bits & (1 << SEP_DIRTY_BITS_BIT)) {
+		incompat_flags_.insert(SEP_DIRTY_BITS);
+		bits &= ~(1 << SEP_DIRTY_BITS_BIT);
+	}
+
+	unhandled_incompat_flags_ = bits;
+}
+
+void
+superblock_incompat_flags::set_flag(superblock_incompat_flags::flag f)
+{
+	incompat_flags_.insert(f);
+}
+
+void
+superblock_incompat_flags::clear_flag(superblock_incompat_flags::flag f)
+{
+	incompat_flags_.erase(f);
+}
+
+bool
+superblock_incompat_flags::get_flag(superblock_incompat_flags::flag f) const
+{
+	return incompat_flags_.find(f) != incompat_flags_.end();
+}
+
+uint32_t
+superblock_incompat_flags::encode() const
+{
+	uint32_t r = 0;
+
+	if (get_flag(SEP_DIRTY_BITS))
+		r = r | (1 << SEP_DIRTY_BITS_BIT);
+
+	return r;
+}
+
+uint32_t
+superblock_incompat_flags::get_unhandled_flags() const
+{
+	return unhandled_incompat_flags_;
+}
+
+//----------------------------------------------------------------
+
 superblock::superblock()
 	: csum(0),
 	  blocknr(SUPERBLOCK_LOCATION),
@@ -140,7 +192,6 @@ superblock::superblock()
 	  cache_blocks(0),
 	  compat_flags(0),
 	  compat_ro_flags(0),
-	  incompat_flags(0),
 	  read_hits(0),
 	  read_misses(0),
 	  write_hits(0),
@@ -159,7 +210,7 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 {
 	core.compat_flags = to_cpu<uint32_t>(disk.compat_flags);
 	core.compat_ro_flags = to_cpu<uint32_t>(disk.compat_ro_flags);
-	core.incompat_flags = to_cpu<uint32_t>(disk.incompat_flags);
+	core.incompat_flags = superblock_incompat_flags(to_cpu<uint32_t>(disk.incompat_flags));
 
 	core.csum = to_cpu<uint32_t>(disk.csum);
 
@@ -175,8 +226,7 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 	for (unsigned i = 0; i < CACHE_POLICY_VERSION_SIZE; i++)
 		core.policy_version[i] = to_cpu<uint32_t>(disk.policy_version[i]);
 
-	core.policy_hint_size = test_bit(core.incompat_flags, VARIABLE_HINT_SIZE_BIT) ?
-		to_cpu<uint32_t>(disk.policy_hint_size) : 4;
+	core.policy_hint_size = 4;
 
 	::memcpy(core.metadata_space_map_root,
 		 disk.metadata_space_map_root,
@@ -198,7 +248,7 @@ superblock_traits::unpack(superblock_disk const &disk, superblock &core)
 	core.write_hits = to_cpu<uint32_t>(disk.write_hits);
 	core.write_misses = to_cpu<uint32_t>(disk.write_misses);
 
-	if (core.version >= 2)
+	if (core.incompat_flags.get_flag(superblock_incompat_flags::SEP_DIRTY_BITS))
 		core.dirty_root = to_cpu<uint64_t>(disk.dirty_root);
 }
 
@@ -221,13 +271,7 @@ superblock_traits::pack(superblock const &sb, superblock_disk &disk)
 	for (unsigned i = 0; i < CACHE_POLICY_VERSION_SIZE; i++)
 		disk.policy_version[i] = to_disk<le32>(core.policy_version[i]);
 
-	if (core.policy_hint_size != 4) {
-		set_bit(core.incompat_flags, VARIABLE_HINT_SIZE_BIT);
-		disk.policy_hint_size = to_disk<le32>(core.policy_hint_size);
-	} else {
-		clear_bit(core.incompat_flags, VARIABLE_HINT_SIZE_BIT);
-		disk.policy_hint_size = to_disk<le32>(0u);
-	}
+	disk.policy_hint_size = to_disk<le32>(core.policy_hint_size);
 
 	::memcpy(disk.metadata_space_map_root,
 		 core.metadata_space_map_root,
@@ -246,7 +290,7 @@ superblock_traits::pack(superblock const &sb, superblock_disk &disk)
 
 	disk.compat_flags = to_disk<le32>(core.compat_flags);
 	disk.compat_ro_flags = to_disk<le32>(core.compat_ro_flags);
-	disk.incompat_flags = to_disk<le32>(core.incompat_flags);
+	disk.incompat_flags = to_disk<le32>(core.incompat_flags.encode());
 
 	disk.read_hits = to_disk<le32>(core.read_hits);
 	disk.read_misses = to_disk<le32>(core.read_misses);
@@ -404,9 +448,9 @@ caching::check_superblock(superblock const &sb,
 		visitor.visit(superblock_invalid(msg.str()));
 	}
 
-	if (sb.incompat_flags & ~(1 << VARIABLE_HINT_SIZE_BIT)) {
+	if (sb.incompat_flags.get_unhandled_flags()) {
 		ostringstream msg;
-		msg << "incompat_flags invalid (can only be 0): " << sb.incompat_flags;
+		msg << "incompat_flags invalid: " << sb.incompat_flags.get_unhandled_flags();
 		visitor.visit(superblock_invalid(msg.str()));
 	}
 }

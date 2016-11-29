@@ -15,6 +15,8 @@ namespace {
 			: in_superblock_(false),
 			  md_(md),
 			  clean_shutdown_(clean_shutdown),
+			  // FIXME: change top-level interface to not be
+			  // metadata_version specific
 			  metadata_version_(metadata_version) {
 		}
 
@@ -39,9 +41,13 @@ namespace {
 			unmapped_value.flags_ = 0;
 			md_->mappings_->grow(nr_cache_blocks, unmapped_value);
 
-			if (metadata_version_ > 1)
+			// FIXME: change top-level interface to not be
+			// metadata_version specific
+			if (metadata_version_ > 1) {
+				sb.incompat_flags.set_flag(superblock_incompat_flags::SEP_DIRTY_BITS);
 				// make everything dirty by default
 				md_->dirty_bits_->grow(nr_cache_blocks, true);
+			}
 
 			vector<unsigned char> hint_value(hint_width, '\0');
 			md_->hints_->grow(nr_cache_blocks, hint_value);
@@ -62,15 +68,17 @@ namespace {
 		virtual void mapping(pd::block_address cblock,
 				     pd::block_address oblock,
 				     bool dirty) {
+			superblock &sb = md_->sb_;
 			caching::mapping m;
 			m.oblock_ = oblock;
 			m.flags_ = M_VALID;
 
-			if (metadata_version_ == 1) {
+			if (sb.incompat_flags.get_flag(superblock_incompat_flags::SEP_DIRTY_BITS))
+				md_->dirty_bits_->set(cblock, dirty);
+			else {
 				if (dirty)
 					m.flags_ = m.flags_ | M_DIRTY;
-			} else
-				md_->dirty_bits_->set(cblock, dirty);
+			}
 
 			md_->mappings_->set(cblock, m);
 		}
